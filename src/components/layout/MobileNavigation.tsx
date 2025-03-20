@@ -1,19 +1,28 @@
-import { Calendar, PlusCircle, Trophy } from "lucide-react";
+import { Calendar, PlusCircle, BarChart2 } from "lucide-react";
 
 interface MobileNavigationProps {
   onAddClick: () => void;
+  activeTab: "tracker" | "insights";
+  onTabChange: (tab: "tracker" | "insights") => void;
 }
 
 export default function MobileNavigation({
   onAddClick,
+  activeTab,
+  onTabChange,
 }: MobileNavigationProps) {
   return (
     <nav className="md:hidden bg-white border-t fixed bottom-0 left-0 right-0 z-10">
       <div className="flex justify-around">
-        <button className="p-4 text-indigo-600">
+        <button
+          className={`p-4 ${
+            activeTab === "tracker" ? "text-indigo-600" : "text-gray-500"
+          }`}
+          onClick={() => onTabChange("tracker")}
+        >
           <div className="flex flex-col items-center">
             <Calendar size={20} />
-            <span className="text-xs mt-1">History</span>
+            <span className="text-xs mt-1">Tracker</span>
           </div>
         </button>
         <button
@@ -24,10 +33,15 @@ export default function MobileNavigation({
             <PlusCircle size={24} />
           </div>
         </button>
-        <button className="p-4 text-gray-500">
+        <button
+          className={`p-4 ${
+            activeTab === "insights" ? "text-indigo-600" : "text-gray-500"
+          }`}
+          onClick={() => onTabChange("insights")}
+        >
           <div className="flex flex-col items-center">
-            <Trophy size={20} />
-            <span className="text-xs mt-1">Achievements</span>
+            <BarChart2 size={20} />
+            <span className="text-xs mt-1">Insights</span>
           </div>
         </button>
       </div>
