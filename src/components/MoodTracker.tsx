@@ -1,66 +1,27 @@
-// src/components/MoodTracker.tsx
+"use client";
+
 import { useState, useEffect } from "react";
 import { Calendar, PlusCircle, X, Settings, Search } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { Activity, ActivityCategory } from "@/types/activity";
 import ActivityManager from "./ActivityManager";
-import { getAllActivities, getAllCategories } from "@/services/activityService";
-
-// Interface for stored activity in localStorage
-interface StoredActivity {
-  id: string;
-  activityId: string;
-  name: string;
-  icon: string;
-  points: number;
-  category: string;
-  date: string;
-  timestamp: string;
-  notes?: string;
-}
-
-// Using a centralized storage key for mood activities
-const MOOD_ACTIVITIES_STORAGE_KEY = "moodActivities";
-
-// Helper function to load activities from localStorage
-function loadMoodActivities(): StoredActivity[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const saved = localStorage.getItem(MOOD_ACTIVITIES_STORAGE_KEY);
-    if (!saved) return [];
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("Error loading mood activities:", error);
-    return [];
-  }
-}
-
-// Helper function to save activities to localStorage
-function saveMoodActivities(activities: StoredActivity[]): void {
-  if (typeof window === "undefined") return;
-
-  try {
-    localStorage.setItem(
-      MOOD_ACTIVITIES_STORAGE_KEY,
-      JSON.stringify(activities)
-    );
-  } catch (error) {
-    console.error("Error saving mood activities:", error);
-  }
-}
+import { getAllCategories } from "@/services/activityService";
+import { useMood } from "@/context/MoodContext";
 
 export default function MoodTracker() {
   // State for the current date and displayed date
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // State for activities and mood data
-  const [activities, setActivities] = useState<StoredActivity[]>([]);
-  const [availableActivities, setAvailableActivities] = useState<Activity[]>(
-    []
-  );
+  // Use our mood context
+  const {
+    activities,
+    availableActivities,
+    addActivity,
+    removeActivity,
+    getActivitiesForDate,
+    getMoodScore,
+    refreshAvailableActivities,
+  } = useMood();
 
   // State for quick add mode
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -73,89 +34,25 @@ export default function MoodTracker() {
   // State for activity manager
   const [isActivityManagerOpen, setIsActivityManagerOpen] = useState(false);
 
-  // Load all available activities (both predefined and custom)
-  const loadAllActivities = () => {
-    const allActivities = getAllActivities();
-    setAvailableActivities(allActivities);
-  };
-
-  // Load available activities on mount and when activity manager closes
+  // Refresh available activities when activity manager closes
+  // But be careful with the dependency array to avoid infinite loops
   useEffect(() => {
-    loadAllActivities();
+    if (!isActivityManagerOpen) {
+      refreshAvailableActivities();
+    }
+    // We intentionally exclude refreshAvailableActivities from dependencies
+    // because it's already memoized with useCallback in the context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActivityManagerOpen]);
-
-  // Load mood activities from localStorage on mount
-  useEffect(() => {
-    // Use a dedicated function to load mood activities
-    const storedActivities = loadMoodActivities();
-    setActivities(storedActivities);
-
-    // Add an event listener to handle storage changes from other tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === MOOD_ACTIVITIES_STORAGE_KEY) {
-        // Reload activities when localStorage changes
-        const updatedActivities = loadMoodActivities();
-        setActivities(updatedActivities);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
-
-  // Save activities to localStorage whenever they change
-  useEffect(() => {
-    saveMoodActivities(activities);
-  }, [activities]);
 
   // Handle adding a new activity
   const handleAddActivity = (activity: Activity) => {
-    const newActivity = {
-      id: `${activity.id}-${Date.now()}`,
-      activityId: activity.id,
-      name: activity.name,
-      icon: activity.icon || "⭐",
-      points: activity.points,
-      category: activity.category,
-      date: formatDate(selectedDate),
-      timestamp: new Date().toISOString(),
-    };
-
-    // Update state with the new activity
-    const updatedActivities = [...activities, newActivity];
-    setActivities(updatedActivities);
-
-    // Save directly to localStorage as a backup
-    saveMoodActivities(updatedActivities);
+    addActivity(activity, selectedDate);
 
     // Close modals
     setIsQuickAddOpen(false);
     setShowAllActivities(false);
     setSearchTerm("");
-  };
-
-  // Handle removing an activity
-  const handleRemoveActivity = (id: string) => {
-    const updatedActivities = activities.filter(
-      (activity) => activity.id !== id
-    );
-    setActivities(updatedActivities);
-    saveMoodActivities(updatedActivities);
-  };
-
-  // Get activities for the selected date
-  const getActivitiesForDate = (date: Date) => {
-    const dateString = formatDate(date);
-    return activities.filter((activity) => activity.date === dateString);
-  };
-
-  // Calculate total mood score for a date
-  const getMoodScore = (date: Date) => {
-    const dateActivities = getActivitiesForDate(date);
-    return dateActivities.reduce((sum, activity) => sum + activity.points, 0);
   };
 
   // Get mood color based on score
@@ -289,7 +186,9 @@ export default function MoodTracker() {
             <div
               key={i}
               className={`aspect-square rounded-md flex items-center justify-center text-sm cursor-pointer ${
-                date ? getMoodColor(getMoodScore(date)) : "bg-gray-100"
+                date
+                  ? getMoodColor(date ? getMoodScore(date) : 0)
+                  : "bg-gray-100"
               } ${
                 date && formatDate(date) === formatDate(new Date())
                   ? "ring-2 ring-indigo-500"
@@ -355,7 +254,7 @@ export default function MoodTracker() {
                       : activity.points}
                   </span>
                   <button
-                    onClick={() => handleRemoveActivity(activity.id)}
+                    onClick={() => removeActivity(activity.id)}
                     className="text-gray-400 hover:text-red-500"
                     title="Remove activity"
                   >

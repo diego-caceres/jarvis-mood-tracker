@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import Header from "@/components/layout/Header";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import MoodTracker from "@/components/MoodTracker";
 import MoodInsights from "@/components/MoodInsights";
 import ActivityManager from "@/components/ActivityManager";
-import { getAllActivities } from "@/services/activityService";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"tracker" | "insights">("tracker");

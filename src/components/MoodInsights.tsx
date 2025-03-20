@@ -1,20 +1,8 @@
-// src/components/MoodInsights.tsx
+"use client";
+
 import { useState, useEffect } from "react";
 import { BarChart2, TrendingUp, Award } from "lucide-react";
-import { formatDate } from "@/lib/utils";
-
-// Interface for stored activity in localStorage
-interface StoredActivity {
-  id: string;
-  activityId: string;
-  name: string;
-  icon: string;
-  points: number;
-  category: string;
-  date: string;
-  timestamp: string;
-  notes?: string;
-}
+import { useMood, StoredActivity } from "@/context/MoodContext";
 
 interface DailyScore {
   date: string;
@@ -44,28 +32,11 @@ interface Stats {
   topCategories: CategoryStat[];
 }
 
-// Constant for localStorage key
-const MOOD_ACTIVITIES_STORAGE_KEY = "moodActivities";
-
-// Helper function to load activities from localStorage
-function loadMoodActivities(): StoredActivity[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const saved = localStorage.getItem(MOOD_ACTIVITIES_STORAGE_KEY);
-    if (!saved) return [];
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("Error loading mood activities:", error);
-    return [];
-  }
-}
-
 export default function MoodInsights() {
-  // State for activities and mood data
-  const [activities, setActivities] = useState<StoredActivity[]>([]);
+  // Use our mood context
+  const { activities } = useMood();
+
+  // State for timeframe and stats
   const [timeframe, setTimeframe] = useState<"week" | "month" | "year">("week");
   const [stats, setStats] = useState<Stats>({
     streak: 0,
@@ -78,46 +49,14 @@ export default function MoodInsights() {
 
   const [chartData, setChartData] = useState<DailyScore[]>([]);
 
-  // Load activities from localStorage
-  useEffect(() => {
-    const loadedActivities = loadMoodActivities();
-    setActivities(loadedActivities);
-
-    if (loadedActivities.length > 0) {
-      calculateStats(loadedActivities);
-      const data = getChartData(loadedActivities, timeframe);
-      setChartData(data);
-    }
-
-    // Add event listener for localStorage changes
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === MOOD_ACTIVITIES_STORAGE_KEY) {
-        // Reload activities when localStorage changes
-        const updatedActivities = loadMoodActivities();
-        setActivities(updatedActivities);
-
-        if (updatedActivities.length > 0) {
-          calculateStats(updatedActivities);
-          const data = getChartData(updatedActivities, timeframe);
-          setChartData(data);
-        }
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
-
-  // Update chart data when timeframe changes
+  // Calculate stats whenever activities change
   useEffect(() => {
     if (activities.length > 0) {
+      calculateStats(activities);
       const data = getChartData(activities, timeframe);
       setChartData(data);
     }
-  }, [timeframe, activities]);
+  }, [activities, timeframe]);
 
   // Calculate various statistics from activity data
   const calculateStats = (activitiesData: StoredActivity[]) => {
@@ -144,9 +83,8 @@ export default function MoodInsights() {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Calculate streaks
-    let currentStreak = 0;
-    let bestStreak = 0;
     let tempStreak = 0;
+    let bestStreak = 0;
 
     dailyScores.forEach((day) => {
       if (day.score > 0) {
@@ -158,6 +96,7 @@ export default function MoodInsights() {
     });
 
     // Check if current streak is active
+    let currentStreak = 0;
     const recentDays = dailyScores.slice(-7);
     for (let i = recentDays.length - 1; i >= 0; i--) {
       if (recentDays[i].score > 0) {
