@@ -1,3 +1,4 @@
+// src/components/MoodInsights.tsx
 import { useState, useEffect } from "react";
 import { BarChart2, TrendingUp, Award } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -43,6 +44,25 @@ interface Stats {
   topCategories: CategoryStat[];
 }
 
+// Constant for localStorage key
+const MOOD_ACTIVITIES_STORAGE_KEY = "moodActivities";
+
+// Helper function to load activities from localStorage
+function loadMoodActivities(): StoredActivity[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const saved = localStorage.getItem(MOOD_ACTIVITIES_STORAGE_KEY);
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error loading mood activities:", error);
+    return [];
+  }
+}
+
 export default function MoodInsights() {
   // State for activities and mood data
   const [activities, setActivities] = useState<StoredActivity[]>([]);
@@ -58,19 +78,37 @@ export default function MoodInsights() {
 
   const [chartData, setChartData] = useState<DailyScore[]>([]);
 
-  // Load data from localStorage
+  // Load activities from localStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("moodActivities");
-      const loadedActivities = saved ? JSON.parse(saved) : [];
-      setActivities(loadedActivities);
+    const loadedActivities = loadMoodActivities();
+    setActivities(loadedActivities);
 
-      if (loadedActivities.length > 0) {
-        calculateStats(loadedActivities);
-        const data = getChartData(loadedActivities, timeframe);
-        setChartData(data);
-      }
+    if (loadedActivities.length > 0) {
+      calculateStats(loadedActivities);
+      const data = getChartData(loadedActivities, timeframe);
+      setChartData(data);
     }
+
+    // Add event listener for localStorage changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === MOOD_ACTIVITIES_STORAGE_KEY) {
+        // Reload activities when localStorage changes
+        const updatedActivities = loadMoodActivities();
+        setActivities(updatedActivities);
+
+        if (updatedActivities.length > 0) {
+          calculateStats(updatedActivities);
+          const data = getChartData(updatedActivities, timeframe);
+          setChartData(data);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   // Update chart data when timeframe changes

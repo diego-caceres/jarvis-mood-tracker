@@ -19,6 +19,39 @@ interface StoredActivity {
   notes?: string;
 }
 
+// Using a centralized storage key for mood activities
+const MOOD_ACTIVITIES_STORAGE_KEY = "moodActivities";
+
+// Helper function to load activities from localStorage
+function loadMoodActivities(): StoredActivity[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const saved = localStorage.getItem(MOOD_ACTIVITIES_STORAGE_KEY);
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error loading mood activities:", error);
+    return [];
+  }
+}
+
+// Helper function to save activities to localStorage
+function saveMoodActivities(activities: StoredActivity[]): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.setItem(
+      MOOD_ACTIVITIES_STORAGE_KEY,
+      JSON.stringify(activities)
+    );
+  } catch (error) {
+    console.error("Error saving mood activities:", error);
+  }
+}
+
 export default function MoodTracker() {
   // State for the current date and displayed date
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -51,20 +84,31 @@ export default function MoodTracker() {
     loadAllActivities();
   }, [isActivityManagerOpen]);
 
-  // Load from localStorage on mount
+  // Load mood activities from localStorage on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("moodActivities");
-      const savedActivities = saved ? JSON.parse(saved) : [];
-      setActivities(savedActivities);
-    }
+    // Use a dedicated function to load mood activities
+    const storedActivities = loadMoodActivities();
+    setActivities(storedActivities);
+
+    // Add an event listener to handle storage changes from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === MOOD_ACTIVITIES_STORAGE_KEY) {
+        // Reload activities when localStorage changes
+        const updatedActivities = loadMoodActivities();
+        setActivities(updatedActivities);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
-  // Save to localStorage whenever activities change
+  // Save activities to localStorage whenever they change
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("moodActivities", JSON.stringify(activities));
-    }
+    saveMoodActivities(activities);
   }, [activities]);
 
   // Handle adding a new activity
@@ -80,10 +124,26 @@ export default function MoodTracker() {
       timestamp: new Date().toISOString(),
     };
 
-    setActivities([...activities, newActivity]);
+    // Update state with the new activity
+    const updatedActivities = [...activities, newActivity];
+    setActivities(updatedActivities);
+
+    // Save directly to localStorage as a backup
+    saveMoodActivities(updatedActivities);
+
+    // Close modals
     setIsQuickAddOpen(false);
     setShowAllActivities(false);
     setSearchTerm("");
+  };
+
+  // Handle removing an activity
+  const handleRemoveActivity = (id: string) => {
+    const updatedActivities = activities.filter(
+      (activity) => activity.id !== id
+    );
+    setActivities(updatedActivities);
+    saveMoodActivities(updatedActivities);
   };
 
   // Get activities for the selected date
@@ -284,15 +344,24 @@ export default function MoodTracker() {
                   <span className="mr-2 text-xl">{activity.icon}</span>
                   <span>{activity.name}</span>
                 </div>
-                <span
-                  className={`font-medium ${
-                    activity.points >= 0 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {activity.points > 0
-                    ? `+${activity.points}`
-                    : activity.points}
-                </span>
+                <div className="flex items-center">
+                  <span
+                    className={`font-medium mr-2 ${
+                      activity.points >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {activity.points > 0
+                      ? `+${activity.points}`
+                      : activity.points}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveActivity(activity.id)}
+                    className="text-gray-400 hover:text-red-500"
+                    title="Remove activity"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
             ))
           )}
