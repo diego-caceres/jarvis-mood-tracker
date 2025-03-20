@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { formatDate } from "@/lib/utils";
-import { Activity, DailyActivity } from "@/types/activity";
+import { Activity } from "@/types/activity";
 import { getAllActivities } from "@/services/activityService";
 
 // Interface for stored activity in localStorage
