@@ -6,33 +6,17 @@ import Header from "@/components/layout/Header";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import MoodTracker from "@/components/MoodTracker";
 import MoodInsights from "@/components/MoodInsights";
-import QuickAddPanel from "@/components/QuickAddPanel";
-import { Activity } from "@/types/activity";
-import { predefinedActivities } from "@/data/activities";
+import ActivityManager from "@/components/ActivityManager";
+import { getAllActivities } from "@/services/activityService";
 
 export default function Home() {
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [activeTab, setActiveTab] = useState<"tracker" | "insights">("tracker");
+  const [isActivityManagerOpen, setIsActivityManagerOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
-
-  // Quick access activities
-  const quickAddActivities = [
-    { id: "surf", name: "Surf", icon: "🏄‍♂️", score: 5 },
-    { id: "reading", name: "Reading", icon: "📚", score: 3 },
-    { id: "exercise", name: "Exercise", icon: "🏃‍♂️", score: 5 },
-    { id: "meditation", name: "Meditation", icon: "🧘‍♂️", score: 3 },
-    { id: "work", name: "Work", icon: "💼", score: 2 },
-    { id: "fast-food", name: "Fast Food", icon: "🍔", score: -3 },
-  ];
-
-  const handleActivitySelect = (activity: Activity) => {
-    // This would be handled by the MoodTracker component now
-    setShowQuickAdd(false);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header onManageActivities={() => setIsActivityManagerOpen(true)} />
 
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Tab navigation for desktop */}
@@ -70,21 +54,15 @@ export default function Home() {
 
       {isMobile && (
         <MobileNavigation
-          onAddClick={() => setShowQuickAdd(true)}
+          onAddClick={() => setIsActivityManagerOpen(true)}
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
       )}
 
-      {showQuickAdd && (
-        <QuickAddPanel
-          activities={quickAddActivities.map((a) => ({
-            ...a,
-            points: a.score,
-          }))}
-          onClose={() => setShowQuickAdd(false)}
-          onActivitySelect={handleActivitySelect}
-        />
+      {/* Activity Manager Modal */}
+      {isActivityManagerOpen && (
+        <ActivityManager onClose={() => setIsActivityManagerOpen(false)} />
       )}
     </div>
   );

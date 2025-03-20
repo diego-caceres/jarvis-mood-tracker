@@ -1,8 +1,10 @@
+// src/components/MoodTracker.tsx
 import { useState, useEffect } from "react";
-import { Calendar, PlusCircle, X } from "lucide-react";
+import { Calendar, PlusCircle, X, Settings } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { Activity } from "@/types/activity";
-import { predefinedActivities } from "@/data/activities";
+import ActivityManager from "./ActivityManager";
+import { getAllActivities, findActivityById } from "@/services/activityService";
 
 // Interface for stored activity in localStorage
 interface StoredActivity {
@@ -24,49 +26,20 @@ export default function MoodTracker() {
 
   // State for activities and mood data
   const [activities, setActivities] = useState<StoredActivity[]>([]);
+  const [availableActivities, setAvailableActivities] = useState<Activity[]>(
+    []
+  );
 
   // State for quick add mode
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
-  // Common activities for quick add
-  const quickAddActivities = [
-    {
-      id: "exercise",
-      name: "Exercise",
-      icon: "🏃‍♂️",
-      points: 5,
-      category: "Exercise",
-    },
-    {
-      id: "reading",
-      name: "Reading",
-      icon: "📚",
-      points: 3,
-      category: "Hobbies",
-    },
-    {
-      id: "meditation",
-      name: "Meditation",
-      icon: "🧘‍♂️",
-      points: 3,
-      category: "Personal Growth",
-    },
-    { id: "work", name: "Work", icon: "💼", points: 2, category: "Work" },
-    {
-      id: "surfing",
-      name: "Surfing",
-      icon: "🏄‍♂️",
-      points: 5,
-      category: "Hobbies",
-    },
-    {
-      id: "fast-food",
-      name: "Fast Food",
-      icon: "🍔",
-      points: -3,
-      category: "Food",
-    },
-  ];
+  // State for activity manager
+  const [isActivityManagerOpen, setIsActivityManagerOpen] = useState(false);
+
+  // Get all activities on mount and when activity manager closes
+  useEffect(() => {
+    setAvailableActivities(getAllActivities());
+  }, [isActivityManagerOpen]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -85,12 +58,15 @@ export default function MoodTracker() {
   }, [activities]);
 
   // Handle adding a new activity
-  const handleAddActivity = (activity: any) => {
+  const handleAddActivity = (activity: Activity) => {
+    // Create an icon based on the first character if not provided
+    const icon = activity.icon || activity.name.slice(0, 1).toUpperCase();
+
     const newActivity = {
       id: `${activity.id}-${Date.now()}`,
       activityId: activity.id,
       name: activity.name,
-      icon: activity.icon,
+      icon: icon,
       points: activity.points,
       category: activity.category,
       date: formatDate(selectedDate),
@@ -148,17 +124,62 @@ export default function MoodTracker() {
     return days;
   };
 
+  // Get quick add activities (combining predefined and custom favorites)
+  const getQuickAddActivities = () => {
+    // Get most frequently used activities
+    const activityCounts: Record<string, number> = {};
+
+    activities.forEach((activity) => {
+      if (!activityCounts[activity.activityId]) {
+        activityCounts[activity.activityId] = 0;
+      }
+      activityCounts[activity.activityId]++;
+    });
+
+    // Sort by frequency and take top activities
+    const frequentActivityIds = Object.entries(activityCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map((entry) => entry[0]);
+
+    // Get the actual activity objects
+    const quickAddActivities = frequentActivityIds
+      .map((id) => availableActivities.find((a) => a.id === id))
+      .filter((a) => a !== undefined) as Activity[];
+
+    // If we don't have enough frequently used activities, add some defaults
+    if (quickAddActivities.length < 6) {
+      const missing = 6 - quickAddActivities.length;
+      const defaults = availableActivities
+        .filter((a) => !quickAddActivities.some((q) => q.id === a.id))
+        .sort((a, b) => b.points - a.points)
+        .slice(0, missing);
+
+      quickAddActivities.push(...defaults);
+    }
+
+    return quickAddActivities;
+  };
+
   const selectedDateActivities = getActivitiesForDate(selectedDate);
   const selectedDateScore = getMoodScore(selectedDate);
   const daysGrid = getDaysGrid();
+  const quickAddActivities = getQuickAddActivities();
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <h2 className="text-xl font-semibold flex items-center">
           <Calendar className="mr-2" size={20} />
           Mood Tracker
         </h2>
+        <button
+          onClick={() => setIsActivityManagerOpen(true)}
+          className="text-gray-600 hover:text-indigo-600"
+          title="Manage Custom Activities"
+        >
+          <Settings size={20} />
+        </button>
       </div>
 
       {/* Month grid */}
@@ -276,7 +297,7 @@ export default function MoodTracker() {
                   }`}
                   onClick={() => handleAddActivity(activity)}
                 >
-                  <span className="text-2xl mb-1">{activity.icon}</span>
+                  <span className="text-2xl mb-1">{activity.icon || "⚡"}</span>
                   <span className="font-medium">{activity.name}</span>
                   <span
                     className={`text-sm ${
@@ -291,14 +312,31 @@ export default function MoodTracker() {
               ))}
             </div>
 
-            <button
-              className="w-full py-2 mt-2 text-gray-600 hover:text-gray-800"
-              onClick={() => setIsQuickAddOpen(false)}
-            >
-              Cancel
-            </button>
+            <div className="flex justify-between">
+              <button
+                className="px-4 py-2 text-indigo-600 hover:text-indigo-800 font-medium"
+                onClick={() => {
+                  setIsQuickAddOpen(false);
+                  setIsActivityManagerOpen(true);
+                }}
+              >
+                Manage Custom Activities
+              </button>
+
+              <button
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setIsQuickAddOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Activity Manager */}
+      {isActivityManagerOpen && (
+        <ActivityManager onClose={() => setIsActivityManagerOpen(false)} />
       )}
 
       {/* Stats summary */}

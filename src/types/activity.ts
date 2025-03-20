@@ -10,6 +10,7 @@ export type ActivityCategory =
 export interface Activity {
   id: string;
   name: string;
+  icon: string;
   category: ActivityCategory;
   points: number;
   description?: string;
