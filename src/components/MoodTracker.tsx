@@ -1,10 +1,10 @@
 // src/components/MoodTracker.tsx
 import { useState, useEffect } from "react";
-import { Calendar, PlusCircle, X, Settings } from "lucide-react";
+import { Calendar, PlusCircle, X, Settings, Search } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { Activity } from "@/types/activity";
+import { Activity, ActivityCategory } from "@/types/activity";
 import ActivityManager from "./ActivityManager";
-import { getAllActivities, findActivityById } from "@/services/activityService";
+import { getAllActivities, getAllCategories } from "@/services/activityService";
 
 // Interface for stored activity in localStorage
 interface StoredActivity {
@@ -21,7 +21,6 @@ interface StoredActivity {
 
 export default function MoodTracker() {
   // State for the current date and displayed date
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // State for activities and mood data
@@ -32,13 +31,24 @@ export default function MoodTracker() {
 
   // State for quick add mode
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<
+    ActivityCategory | "All"
+  >("All");
 
   // State for activity manager
   const [isActivityManagerOpen, setIsActivityManagerOpen] = useState(false);
 
-  // Get all activities on mount and when activity manager closes
+  // Load all available activities (both predefined and custom)
+  const loadAllActivities = () => {
+    const allActivities = getAllActivities();
+    setAvailableActivities(allActivities);
+  };
+
+  // Load available activities on mount and when activity manager closes
   useEffect(() => {
-    setAvailableActivities(getAllActivities());
+    loadAllActivities();
   }, [isActivityManagerOpen]);
 
   // Load from localStorage on mount
@@ -59,14 +69,11 @@ export default function MoodTracker() {
 
   // Handle adding a new activity
   const handleAddActivity = (activity: Activity) => {
-    // Create an icon based on the first character if not provided
-    const icon = activity.icon || activity.name.slice(0, 1).toUpperCase();
-
     const newActivity = {
       id: `${activity.id}-${Date.now()}`,
       activityId: activity.id,
       name: activity.name,
-      icon: icon,
+      icon: activity.icon || "⭐",
       points: activity.points,
       category: activity.category,
       date: formatDate(selectedDate),
@@ -75,6 +82,8 @@ export default function MoodTracker() {
 
     setActivities([...activities, newActivity]);
     setIsQuickAddOpen(false);
+    setShowAllActivities(false);
+    setSearchTerm("");
   };
 
   // Get activities for the selected date
@@ -161,10 +170,34 @@ export default function MoodTracker() {
     return quickAddActivities;
   };
 
+  // Filter activities based on search and category
+  const getFilteredActivities = () => {
+    let filtered = availableActivities;
+
+    // Apply category filter
+    if (selectedCategory !== "All") {
+      filtered = filtered.filter((a) => a.category === selectedCategory);
+    }
+
+    // Apply search filter (if search term exists)
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (a) =>
+          a.name.toLowerCase().includes(searchLower) ||
+          a.category.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  };
+
   const selectedDateActivities = getActivitiesForDate(selectedDate);
   const selectedDateScore = getMoodScore(selectedDate);
   const daysGrid = getDaysGrid();
   const quickAddActivities = getQuickAddActivities();
+  const filteredActivities = getFilteredActivities();
+  const categories = ["All", ...getAllCategories()];
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
@@ -278,58 +311,184 @@ export default function MoodTracker() {
       {/* Quick add panel */}
       {isQuickAddOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Add Activity</h3>
-              <button onClick={() => setIsQuickAddOpen(false)}>
+              <button
+                onClick={() => {
+                  setIsQuickAddOpen(false);
+                  setShowAllActivities(false);
+                  setSearchTerm("");
+                }}
+              >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {quickAddActivities.map((activity) => (
-                <button
-                  key={activity.id}
-                  className={`p-3 rounded-lg border flex flex-col items-center ${
-                    activity.points >= 0
-                      ? "border-green-200 hover:bg-green-50"
-                      : "border-red-200 hover:bg-red-50"
-                  }`}
-                  onClick={() => handleAddActivity(activity)}
-                >
-                  <span className="text-2xl mb-1">{activity.icon || "⚡"}</span>
-                  <span className="font-medium">{activity.name}</span>
-                  <span
-                    className={`text-sm ${
-                      activity.points >= 0 ? "text-green-600" : "text-red-600"
-                    }`}
+            {!showAllActivities ? (
+              // Quick add grid view
+              <>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {quickAddActivities.map((activity) => (
+                    <button
+                      key={activity.id}
+                      className={`p-3 rounded-lg border flex flex-col items-center ${
+                        activity.points >= 0
+                          ? "border-green-200 hover:bg-green-50"
+                          : "border-red-200 hover:bg-red-50"
+                      }`}
+                      onClick={() => handleAddActivity(activity)}
+                    >
+                      <span className="text-2xl mb-1">
+                        {activity.icon || "⭐"}
+                      </span>
+                      <span className="font-medium">{activity.name}</span>
+                      <span
+                        className={`text-sm ${
+                          activity.points >= 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {activity.points > 0
+                          ? `+${activity.points}`
+                          : activity.points}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex justify-between">
+                  <button
+                    className="px-4 py-2 text-indigo-600 hover:text-indigo-800 font-medium"
+                    onClick={() => setShowAllActivities(true)}
                   >
-                    {activity.points > 0
-                      ? `+${activity.points}`
-                      : activity.points}
-                  </span>
-                </button>
-              ))}
-            </div>
+                    Show All Activities
+                  </button>
 
-            <div className="flex justify-between">
-              <button
-                className="px-4 py-2 text-indigo-600 hover:text-indigo-800 font-medium"
-                onClick={() => {
-                  setIsQuickAddOpen(false);
-                  setIsActivityManagerOpen(true);
-                }}
-              >
-                Manage Custom Activities
-              </button>
+                  <button
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    onClick={() => {
+                      setIsQuickAddOpen(false);
+                      setShowAllActivities(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              // All activities view with search and filter
+              <>
+                <div className="mb-4">
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search activities..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 pr-4 py-2 w-full border rounded-lg"
+                    />
+                    <Search
+                      className="absolute left-3 top-2.5 text-gray-400"
+                      size={18}
+                    />
+                  </div>
 
-              <button
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                onClick={() => setIsQuickAddOpen(false)}
-              >
-                Cancel
-              </button>
-            </div>
+                  <div className="flex overflow-x-auto pb-2 mb-2">
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        className={`px-3 py-1 rounded-full text-sm whitespace-nowrap mr-2 ${
+                          selectedCategory === category
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                        onClick={() =>
+                          setSelectedCategory(
+                            category as ActivityCategory | "All"
+                          )
+                        }
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto mb-4">
+                  {filteredActivities.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">
+                      No matching activities found
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredActivities.map((activity) => (
+                        <button
+                          key={activity.id}
+                          className={`w-full text-left p-3 rounded-lg border ${
+                            activity.points >= 0
+                              ? "border-green-200 hover:bg-green-50"
+                              : "border-red-200 hover:bg-red-50"
+                          }`}
+                          onClick={() => handleAddActivity(activity)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <span className="text-xl mr-2">
+                                {activity.icon || "⭐"}
+                              </span>
+                              <div>
+                                <div className="font-medium">
+                                  {activity.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {activity.category}
+                                </div>
+                              </div>
+                            </div>
+                            <span
+                              className={`font-medium ${
+                                activity.points >= 0
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {activity.points > 0
+                                ? `+${activity.points}`
+                                : activity.points}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between mt-2">
+                  <button
+                    className="px-4 py-2 text-indigo-600 hover:text-indigo-800 font-medium"
+                    onClick={() => {
+                      setIsQuickAddOpen(false);
+                      setShowAllActivities(false);
+                      setIsActivityManagerOpen(true);
+                    }}
+                  >
+                    Manage Custom Activities
+                  </button>
+
+                  <button
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    onClick={() => {
+                      setShowAllActivities(false);
+                      setSearchTerm("");
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

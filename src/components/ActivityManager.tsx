@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Activity, ActivityCategory } from "@/types/activity";
 import { Plus, Edit, Trash2, Save, X } from "lucide-react";
+import { getCustomActivities } from "@/services/activityService";
 
 interface ActivityManagerProps {
   onClose: () => void;
@@ -30,15 +31,16 @@ export default function ActivityManager({ onClose }: ActivityManagerProps) {
 
   // Load custom activities from localStorage
   useEffect(() => {
-    const savedActivities = localStorage.getItem("customActivities");
-    if (savedActivities) {
-      setActivities(JSON.parse(savedActivities));
-    }
+    const customActivities = getCustomActivities();
+    setActivities(customActivities);
   }, []);
 
   // Save activities to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem("customActivities", JSON.stringify(activities));
+    if (activities.length > 0) {
+      // Only save if there are activities to save
+      localStorage.setItem("customActivities", JSON.stringify(activities));
+    }
   }, [activities]);
 
   const handleCreateActivity = () => {
@@ -47,10 +49,10 @@ export default function ActivityManager({ onClose }: ActivityManagerProps) {
     const activity: Activity = {
       id: `custom-${Date.now()}`,
       name: newActivity.name,
-      icon: newActivity.icon || newActivity.name.slice(0, 1).toUpperCase(),
       category: newActivity.category as ActivityCategory,
       points: newActivity.points || 0,
       description: newActivity.description,
+      icon: getEmojiForCategory(newActivity.category as ActivityCategory), // Add an appropriate emoji
     };
 
     setActivities([...activities, activity]);
@@ -60,6 +62,26 @@ export default function ActivityManager({ onClose }: ActivityManagerProps) {
       points: 0,
       description: "",
     });
+  };
+
+  // Helper function to generate an emoji based on category
+  const getEmojiForCategory = (category: ActivityCategory): string => {
+    switch (category) {
+      case "Food":
+        return "🍽️";
+      case "Exercise":
+        return "🏃‍♂️";
+      case "Hobbies":
+        return "🎨";
+      case "Obligations":
+        return "📝";
+      case "Work":
+        return "💼";
+      case "Personal Growth":
+        return "🌱";
+      case "Other":
+        return "⭐";
+    }
   };
 
   const handleUpdateActivity = () => {
@@ -249,6 +271,9 @@ export default function ActivityManager({ onClose }: ActivityManagerProps) {
                               setEditingActivity({
                                 ...editingActivity,
                                 category: e.target.value as ActivityCategory,
+                                icon: getEmojiForCategory(
+                                  e.target.value as ActivityCategory
+                                ),
                               })
                             }
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -320,7 +345,12 @@ export default function ActivityManager({ onClose }: ActivityManagerProps) {
                     className="p-3 bg-white rounded-lg border border-gray-200 flex justify-between items-center"
                   >
                     <div>
-                      <h4 className="font-medium">{activity.name}</h4>
+                      <div className="flex items-center">
+                        <span className="mr-2 text-xl">
+                          {activity.icon || "⭐"}
+                        </span>
+                        <h4 className="font-medium">{activity.name}</h4>
+                      </div>
                       <div className="flex items-center text-sm text-gray-500 space-x-2">
                         <span className="bg-gray-100 px-2 py-0.5 rounded-full">
                           {activity.category}

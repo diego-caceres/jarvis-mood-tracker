@@ -16,35 +16,54 @@ export function getAllActivities(): Activity[] {
 export function getCustomActivities(): Activity[] {
   if (typeof window === "undefined") return [];
 
-  const saved = localStorage.getItem("customActivities");
-  return saved ? JSON.parse(saved) : [];
+  try {
+    const saved = localStorage.getItem("customActivities");
+    if (!saved) return [];
+
+    // Parse the JSON and ensure it's an array
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed;
+  } catch (error) {
+    console.error("Error loading custom activities:", error);
+    return [];
+  }
 }
 
 /**
  * Saves a custom activity
  */
 export function saveCustomActivity(activity: Activity): void {
-  const activities = getCustomActivities();
-  const existingIndex = activities.findIndex((a) => a.id === activity.id);
+  try {
+    const activities = getCustomActivities();
+    const existingIndex = activities.findIndex((a) => a.id === activity.id);
 
-  if (existingIndex >= 0) {
-    // Update existing activity
-    activities[existingIndex] = activity;
-  } else {
-    // Add new activity
-    activities.push(activity);
+    if (existingIndex >= 0) {
+      // Update existing activity
+      activities[existingIndex] = activity;
+    } else {
+      // Add new activity
+      activities.push(activity);
+    }
+
+    localStorage.setItem("customActivities", JSON.stringify(activities));
+  } catch (error) {
+    console.error("Error saving custom activity:", error);
   }
-
-  localStorage.setItem("customActivities", JSON.stringify(activities));
 }
 
 /**
  * Deletes a custom activity
  */
 export function deleteCustomActivity(id: string): void {
-  const activities = getCustomActivities();
-  const filtered = activities.filter((a) => a.id !== id);
-  localStorage.setItem("customActivities", JSON.stringify(filtered));
+  try {
+    const activities = getCustomActivities();
+    const filtered = activities.filter((a) => a.id !== id);
+    localStorage.setItem("customActivities", JSON.stringify(filtered));
+  } catch (error) {
+    console.error("Error deleting custom activity:", error);
+  }
 }
 
 /**
@@ -73,10 +92,9 @@ export function findActivityById(id: string): Activity | undefined {
  * Gets suggested activities based on frequency and positive impact
  */
 export function getSuggestedActivities(limit: number = 6): Activity[] {
-  // In a real app, you might use more sophisticated logic based on user history
+  // Simple implementation - just returns some positive activities
   const allActivities = getAllActivities();
 
-  // For now, let's just select some positive activities
   return allActivities
     .filter((a) => a.points > 0)
     .sort((a, b) => b.points - a.points)
